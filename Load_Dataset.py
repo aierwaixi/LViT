@@ -13,6 +13,17 @@ from scipy import ndimage
 from bert_embedding import BertEmbedding
 import re
 
+def _pad_or_truncate_text(text_arr, max_len):
+    # Keep token length fixed so DataLoader can stack tensors in a batch.
+    if text_arr.ndim == 1:
+        text_arr = np.expand_dims(text_arr, axis=0)
+    cur = text_arr.shape[0]
+    dim = text_arr.shape[1]
+    if cur >= max_len:
+        return text_arr[:max_len, :]
+    pad = np.zeros((max_len - cur, dim), dtype=text_arr.dtype)
+    return np.concatenate([text_arr, pad], axis=0)
+
 
 def random_rot_flip(image, label):
     k = np.random.randint(0, 4)
@@ -128,9 +139,8 @@ class LV2D(Dataset):
         text = self.rowtext[mask_filename]
         text = text.split('\n')
         text_token = self.bert_embedding(text)
-        text = np.array(text_token[0][1])
-        if text.shape[0] > 14:
-            text = text[:14, :]
+        text = np.array(text_token[0][1], dtype=np.float32)
+        text = _pad_or_truncate_text(text, 14)
         if self.one_hot_mask:
             assert self.one_hot_mask > 0, 'one_hot_mask must be nonnegative'
             mask = torch.zeros((self.one_hot_mask, mask.shape[1], mask.shape[2])).scatter_(0, mask.long(), 1)
@@ -258,9 +268,8 @@ class ImageToImage2D(Dataset):
         text = self._lookup_text(image_filename, mask_filename)
         text = text.split('\n')
         text_token = self.bert_embedding(text)
-        text = np.array(text_token[0][1])
-        if text.shape[0] > 10:
-            text = text[:10, :]
+        text = np.array(text_token[0][1], dtype=np.float32)
+        text = _pad_or_truncate_text(text, 10)
 
         if self.one_hot_mask:
             assert self.one_hot_mask > 0, 'one_hot_mask must be nonnegative'

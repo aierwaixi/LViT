@@ -605,32 +605,70 @@ def _read_text_from_json(obj):
 def load_split_name_set(filename):
     if not filename:
         return None
-    with open(filename, "r", encoding="utf-8") as f:
+
+    def _numeric_signature(name):
+        stem = Path(str(name)).stem
+        nums = re.findall(r"\d+", stem)
+        return "-".join(nums) if nums else ""
+
+    def _normalized_stem(name):
+        stem = Path(str(name)).stem.lower()
+        for p in ["mask_", "mask-", "img_", "img-", "image_", "image-"]:
+            if stem.startswith(p):
+                stem = stem[len(p):]
+        stem = stem.replace("_mask", "").replace("-mask", "").replace("mask", "")
+        return stem
+
+    def _append_name(names, raw):
+        if raw is None:
+            return
+        s = str(raw).strip()
+        if not s:
+            return
+        p = Path(s)
+        names.add(p.name)
+        names.add(p.stem)
+        names.add(_normalized_stem(s))
+        sig = _numeric_signature(s)
+        if sig:
+            names.add(sig)
+
+    def _flatten_entries(obj):
+        out = []
+        if isinstance(obj, list):
+            out.extend(obj)
+        elif isinstance(obj, dict):
+            for k in ["train", "val", "valid", "test", "data", "items", "labeled", "unlabeled"]:
+                if k in obj and isinstance(obj[k], list):
+                    out.extend(obj[k])
+            if not out:
+                for v in obj.values():
+                    if isinstance(v, list):
+                        out.extend(v)
+        return out
+
+    with open(filename, "r", encoding="utf-8-sig") as f:
         obj = json.load(f)
-    entries = []
-    if isinstance(obj, list):
-        entries = obj
-    elif isinstance(obj, dict):
-        for k in ["train", "val", "valid", "test", "data", "items"]:
-            if k in obj and isinstance(obj[k], list):
-                entries.extend(obj[k])
-        if not entries:
-            for v in obj.values():
-                if isinstance(v, list):
-                    entries.extend(v)
+
+    entries = _flatten_entries(obj)
     names = set()
     for e in entries:
-        if isinstance(e, str):
-            p = Path(e)
-            names.add(p.name)
-            names.add(p.stem)
+        if isinstance(e, (str, int, float)):
+            _append_name(names, e)
             continue
         if isinstance(e, dict):
-            x = e.get("image_path") or e.get("image") or e.get("Image") or e.get("filename") or e.get("name")
-            if x:
-                p = Path(str(x))
-                names.add(p.name)
-                names.add(p.stem)
+            x = (
+                e.get("image_path")
+                or e.get("image")
+                or e.get("Image")
+                or e.get("filename")
+                or e.get("file_name")
+                or e.get("name")
+                or e.get("mask")
+                or e.get("mask_name")
+                or e.get("id")
+            )
+            _append_name(names, x)
     return names
 
 

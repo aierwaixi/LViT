@@ -11,6 +11,8 @@ import warnings
 import weakref
 from PIL import Image
 from numpy import average, dot, linalg
+import json
+from pathlib import Path
 
 from torch.autograd import Variable
 from torch.optim.optimizer import Optimizer
@@ -526,25 +528,110 @@ class CosineAnnealingWarmRestarts(_LRScheduler):
 
 
 def read_text(filename):
-    df = pd.read_excel(filename)
-    text = {}
-    for i in df.index.values:  # Gets the index of the row number and traverses it
-        count = len(df.Description[i].split())
-        if count < 9:
-            df.Description[i] = df.Description[i] + ' EOF XXX' * (9 - count)
-        text[df.Image[i]] = df.Description[i]
-    return text  # return dict (key: values)
+    path = Path(filename)
+    if path.suffix.lower() in [".xlsx", ".xls"]:
+        df = pd.read_excel(filename)
+    elif path.suffix.lower() == ".csv":
+        df = pd.read_csv(filename, encoding="utf-8-sig")
+    elif path.suffix.lower() == ".json":
+        with open(filename, "r", encoding="utf-8") as f:
+            obj = json.load(f)
+        return _read_text_from_json(obj)
+    else:
+        raise ValueError("Unsupported text annotation format: {}".format(filename))
+    return _read_text_from_df(df)
 
 
 def read_text_LV(filename):
-    df = pd.read_excel(filename)
+    return read_text(filename)
+
+
+def _find_col(df, candidates):
+    cols = {str(c).strip().lower(): c for c in df.columns}
+    for cand in candidates:
+        if cand in cols:
+            return cols[cand]
+    return None
+
+
+def _read_text_from_df(df):
     text = {}
-    for i in df.index.values:  # Gets the index of the row number and traverses it
-        count = len(df.Description[i].split())
-        if count < 30:
-            df.Description[i] = df.Description[i] + ' EOF XXX' * (20 - count)  # LV_loss: 24
-        text[df.Image[i]] = df.Description[i]
-    return text  # return dict (key: values)
+    img_col = _find_col(df, ["image", "img", "filename", "file_name", "name", "mask", "mask_name"])
+    desc_col = _find_col(df, ["description", "caption", "text", "prompt", "sentence"])
+    if img_col is None or desc_col is None:
+        raise KeyError("Cannot find image/text columns in annotation file. Columns: {}".format(list(df.columns)))
+    for i in df.index.values:
+        img_name = str(df.loc[i, img_col]).strip()
+        desc = str(df.loc[i, desc_col]).strip()
+        if not img_name:
+            continue
+        count = len(desc.split())
+        if count < 9:
+            desc = desc + ' EOF XXX' * (9 - count)
+        text[img_name] = desc
+        text[Path(img_name).stem] = desc
+    return text
+
+
+def _read_text_from_json(obj):
+    entries = []
+    if isinstance(obj, list):
+        entries = obj
+    elif isinstance(obj, dict):
+        for k in ["train", "val", "valid", "test", "data", "items"]:
+            if k in obj and isinstance(obj[k], list):
+                entries.extend(obj[k])
+        if not entries:
+            for v in obj.values():
+                if isinstance(v, list):
+                    entries.extend(v)
+    text = {}
+    for e in entries:
+        if not isinstance(e, dict):
+            continue
+        img = e.get("image_path") or e.get("image") or e.get("Image") or e.get("filename") or e.get("name")
+        desc = e.get("caption") or e.get("description") or e.get("text") or e.get("prompt") or "infected lung region"
+        if img is None:
+            continue
+        img = str(img).strip()
+        if not img:
+            continue
+        text[img] = desc
+        text[Path(img).name] = desc
+        text[Path(img).stem] = desc
+    return text
+
+
+def load_split_name_set(filename):
+    if not filename:
+        return None
+    with open(filename, "r", encoding="utf-8") as f:
+        obj = json.load(f)
+    entries = []
+    if isinstance(obj, list):
+        entries = obj
+    elif isinstance(obj, dict):
+        for k in ["train", "val", "valid", "test", "data", "items"]:
+            if k in obj and isinstance(obj[k], list):
+                entries.extend(obj[k])
+        if not entries:
+            for v in obj.values():
+                if isinstance(v, list):
+                    entries.extend(v)
+    names = set()
+    for e in entries:
+        if isinstance(e, str):
+            p = Path(e)
+            names.add(p.name)
+            names.add(p.stem)
+            continue
+        if isinstance(e, dict):
+            x = e.get("image_path") or e.get("image") or e.get("Image") or e.get("filename") or e.get("name")
+            if x:
+                p = Path(str(x))
+                names.add(p.name)
+                names.add(p.stem)
+    return names
 
 
 # Unification images processing

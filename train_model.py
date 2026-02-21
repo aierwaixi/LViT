@@ -15,7 +15,7 @@ import logging
 from Train_one_epoch import train_one_epoch, print_summary
 import Config as config
 from torchvision import transforms
-from utils import CosineAnnealingWarmRestarts, WeightedDiceBCE, WeightedDiceCE, read_text, read_text_LV, save_on_batch
+from utils import CosineAnnealingWarmRestarts, WeightedDiceBCE, WeightedDiceCE, read_text, read_text_LV, save_on_batch, load_split_name_set
 from thop import profile
 
 def logger_config(log_path):
@@ -75,10 +75,19 @@ def main_loop(batch_size=config.batch_size, model_type='', tensorboard=True):
                                        image_size=config.img_size)
         val_dataset = ImageToImage2D(config.val_dataset, config.task_name, val_text, val_tf, image_size=config.img_size)
     elif config.task_name == 'Covid19':
-        text = read_text(config.task_dataset + 'Train_Val_text.xlsx')
-        train_dataset = ImageToImage2D(config.train_dataset, config.task_name, text, train_tf,
-                                       image_size=config.img_size)
-        val_dataset = ImageToImage2D(config.val_dataset, config.task_name, text, val_tf, image_size=config.img_size)
+        train_text = read_text(config.train_text_file)
+        val_text = read_text(config.val_text_file)
+        labeled_set = load_split_name_set(getattr(config, "train_labeled_split", ""))
+        train_dataset = ImageToImage2D(config.train_dataset, config.task_name, train_text, train_tf,
+                                       image_size=config.img_size, allowed_names=labeled_set)
+        val_dataset = ImageToImage2D(config.val_dataset, config.task_name, val_text, val_tf, image_size=config.img_size)
+    else:
+        train_text = read_text(config.train_text_file)
+        val_text = read_text(config.val_text_file)
+        labeled_set = load_split_name_set(getattr(config, "train_labeled_split", ""))
+        train_dataset = ImageToImage2D(config.train_dataset, config.task_name, train_text, train_tf,
+                                       image_size=config.img_size, allowed_names=labeled_set)
+        val_dataset = ImageToImage2D(config.val_dataset, config.task_name, val_text, val_tf, image_size=config.img_size)
 
 
     train_loader = DataLoader(train_dataset,

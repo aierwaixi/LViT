@@ -15,7 +15,7 @@ os.environ['PYTHONHASHSEED'] = str(seed)
 cosineLR = True  # Use cosineLR or not
 n_channels = 3
 n_labels = 1  # MoNuSeg & Covid19
-epochs = 2000
+epochs = 40
 img_size = 224
 print_frequency = 1
 save_frequency = 5000
@@ -23,18 +23,23 @@ vis_frequency = 10
 early_stopping_patience = 50
 
 pretrain = False
-task_name = 'MoNuSeg' 
-# task_name = 'Covid19'
-learning_rate = 1e-3  # MoNuSeg: 1e-3, Covid19: 3e-4
-batch_size = 2  # For LViT-T, 2 is better than 4
+task_name = 'Covid19'
+dataset_name = 'QaTa'  # QaTa or MosMed
+learning_rate = 3e-4
+batch_size = 16
 
 model_name = 'LViT'
 # model_name = 'LViT_pretrain'
 
-train_dataset = './datasets/' + task_name + '/Train_Folder/'
-val_dataset = './datasets/' + task_name + '/Val_Folder/'
-test_dataset = './datasets/' + task_name + '/Test_Folder/'
-task_dataset = './datasets/' + task_name + '/Train_Folder/'
+train_dataset = '/home/yuchen/data/MMI-UNet/data/QaTa/images/train/'
+val_dataset = '/home/yuchen/data/MMI-UNet/data/QaTa/images/valid/'
+test_dataset = '/home/yuchen/data/MMI-UNet/data/QaTa/images/test/'
+task_dataset = train_dataset
+
+train_text_file = '/home/yuchen/data/MMI-UNet/data/QaTa/prompts/Train.csv'
+val_text_file = '/home/yuchen/data/MMI-UNet/data/QaTa/prompts/Train.csv'
+test_text_file = '/home/yuchen/data/MMI-UNet/data/QaTa/prompts/Test.csv'
+train_labeled_split = '/home/yuchen/data/MMI-UNet/data/QaTa/prompts/split_labeled_0.15.json'
 session_name = 'Test_session' + '_' + time.strftime('%m.%d_%Hh%M')
 save_path = task_name + '/' + model_name + '/' + session_name + '/'
 model_path = save_path + 'models/'
@@ -64,3 +69,4 @@ def get_CTranS_config():
 
 # used in testing phase, copy the session name in training phase
 # test_session = "Test_session_05.23_14h19"  # dice=79.98, IoU=66.83
+test_session = ""

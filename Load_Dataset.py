@@ -11,6 +11,7 @@ import os
 import cv2
 from scipy import ndimage
 from bert_embedding import BertEmbedding
+import re
 
 
 def random_rot_flip(image, label):
@@ -143,13 +144,15 @@ class ImageToImage2D(Dataset):
 
     def __init__(self, dataset_path: str, task_name: str, row_text: str, joint_transform: Callable = None,
                  one_hot_mask: int = False,
-                 image_size: int = 224) -> None:
+                 image_size: int = 224,
+                 allowed_names=None) -> None:
         self.dataset_path = dataset_path
         self.image_size = image_size
-        self.input_path = os.path.join(dataset_path, 'img')
-        self.output_path = os.path.join(dataset_path, 'labelcol')
-        self.images_list = os.listdir(self.input_path)
-        self.mask_list = os.listdir(self.output_path)
+        self.input_path, self.output_path = self._resolve_io_paths(dataset_path)
+        self.images_list = [x for x in os.listdir(self.input_path) if self._is_image_file(x)]
+        self.mask_list = [x for x in os.listdir(self.output_path) if self._is_image_file(x)]
+        if allowed_names is not None:
+            self.images_list = [x for x in self.images_list if self._name_in_allowed(x, allowed_names)]
         self.one_hot_mask = one_hot_mask
         self.rowtext = row_text
         self.task_name = task_name
@@ -162,14 +165,85 @@ class ImageToImage2D(Dataset):
             self.joint_transform = lambda x, y: (to_tensor(x), to_tensor(y))
 
     def __len__(self):
-        return len(os.listdir(self.input_path))
+        return len(self.images_list)
+
+    @staticmethod
+    def _is_image_file(name):
+        return os.path.splitext(name.lower())[1] in [".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"]
+
+    @staticmethod
+    def _numeric_signature(name):
+        stem = os.path.splitext(os.path.basename(name))[0]
+        nums = re.findall(r"\d+", stem)
+        return "-".join(nums) if nums else ""
+
+    @staticmethod
+    def _normalized_stem(name):
+        stem = os.path.splitext(os.path.basename(name))[0].lower()
+        for p in ["mask_", "mask-", "img_", "img-", "image_", "image-"]:
+            if stem.startswith(p):
+                stem = stem[len(p):]
+        stem = stem.replace("_mask", "").replace("-mask", "")
+        return stem
+
+    def _name_in_allowed(self, image_name, allowed):
+        stem = os.path.splitext(image_name)[0]
+        return image_name in allowed or stem in allowed or self._normalized_stem(image_name) in allowed \
+            or (self._numeric_signature(image_name) in allowed and self._numeric_signature(image_name) != "")
+
+    def _resolve_io_paths(self, dataset_path):
+        cands = [
+            (os.path.join(dataset_path, "img"), os.path.join(dataset_path, "labelcol")),
+            (os.path.join(dataset_path, "images"), os.path.join(dataset_path, "masks")),
+            (os.path.join(dataset_path, "frames"), os.path.join(dataset_path, "masks")),
+        ]
+        for inp, out in cands:
+            if os.path.isdir(inp) and os.path.isdir(out):
+                return inp, out
+        raise FileNotFoundError("Cannot find image/mask folders under {}".format(dataset_path))
+
+    def _find_mask_filename(self, image_filename):
+        stem = os.path.splitext(image_filename)[0]
+        candidates = [
+            stem + ".png",
+            stem + ".jpg",
+            stem + ".jpeg",
+            "mask_" + stem + ".png",
+            "mask_" + stem + ".jpg",
+            "mask-" + stem + ".png",
+            "mask-" + stem + ".jpg",
+        ]
+        for c in candidates:
+            if os.path.exists(os.path.join(self.output_path, c)):
+                return c
+        # fallback by normalized stem / numeric id
+        norm = self._normalized_stem(image_filename)
+        num = self._numeric_signature(image_filename)
+        for m in self.mask_list:
+            if self._normalized_stem(m) == norm:
+                return m
+            if num and self._numeric_signature(m) == num:
+                return m
+        raise FileNotFoundError("Cannot find mask for image {}".format(image_filename))
+
+    def _lookup_text(self, image_filename, mask_filename):
+        keys = [
+            image_filename,
+            os.path.splitext(image_filename)[0],
+            mask_filename,
+            os.path.splitext(mask_filename)[0],
+            self._normalized_stem(image_filename),
+            self._numeric_signature(image_filename),
+        ]
+        for k in keys:
+            if k in self.rowtext:
+                return self.rowtext[k]
+        return "infected lung region"
 
     def __getitem__(self, idx):
 
-        image_filename = self.images_list[idx]  # MoNuSeg
-        mask_filename = image_filename[: -3] + "png"  # MoNuSeg
-        # mask_filename = self.mask_list[idx]  # Covid19
-        # image_filename = mask_filename.replace('mask_', '')  # Covid19
+        image_filename = self.images_list[idx]
+        mask_filename = self._find_mask_filename(image_filename)
         image = cv2.imread(os.path.join(self.input_path, image_filename))
         image = cv2.resize(image, (self.image_size, self.image_size))
 
@@ -181,7 +255,7 @@ class ImageToImage2D(Dataset):
 
         # correct dimensions if needed
         image, mask = correct_dims(image, mask)
-        text = self.rowtext[mask_filename]
+        text = self._lookup_text(image_filename, mask_filename)
         text = text.split('\n')
         text_token = self.bert_embedding(text)
         text = np.array(text_token[0][1])

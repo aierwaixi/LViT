@@ -61,14 +61,18 @@ if __name__ == '__main__':
     test_session = config.test_session
 
     if config.task_name == "MoNuSeg":
-        test_num = 14
         model_type = config.model_name
         model_path = "./MoNuSeg/" + model_type + "/" + test_session + "/models/best_model-" + model_type + ".pth.tar"
 
     elif config.task_name == "Covid19":
-        test_num = 2113
         model_type = config.model_name
-        model_path = "./Covid19/" + model_type + "/" + test_session + "/models/best_model-" + model_type + ".pth.tar"
+        if test_session:
+            model_path = "./Covid19/" + model_type + "/" + test_session + "/models/best_model-" + model_type + ".pth.tar"
+        else:
+            model_path = config.model_path + "best_model-" + model_type + ".pth.tar"
+    else:
+        model_type = config.model_name
+        model_path = config.model_path + "best_model-" + model_type + ".pth.tar"
     
     save_path = config.task_name + '/' + model_type + '/' + test_session + '/'
     vis_path = "./" + config.task_name + '_visualize_test/'
@@ -96,9 +100,10 @@ if __name__ == '__main__':
     model.load_state_dict(checkpoint['state_dict'], strict=False)
     print('Model loaded !')
     tf_test = ValGenerator(output_size=[config.img_size, config.img_size])
-    test_text = read_text(config.test_dataset + 'Test_text.xlsx')
+    test_text = read_text(config.test_text_file)
     test_dataset = ImageToImage2D(config.test_dataset, config.task_name, test_text, tf_test, image_size=config.img_size)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+    test_num = len(test_dataset)
 
     dice_pred = 0.0
     iou_pred = 0.0

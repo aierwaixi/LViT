@@ -159,6 +159,7 @@ class ImageToImage2D(Dataset):
         self.dataset_path = dataset_path
         self.image_size = image_size
         self.input_path, self.output_path = self._resolve_io_paths(dataset_path)
+        self.dataset_kind = self._infer_dataset_kind(dataset_path, self.input_path)
         self.images_list = [x for x in os.listdir(self.input_path) if self._is_image_file(x)]
         self.mask_list = [x for x in os.listdir(self.output_path) if self._is_image_file(x)]
         if allowed_names is not None:
@@ -227,12 +228,36 @@ class ImageToImage2D(Dataset):
                 return inp, out
         raise FileNotFoundError("Cannot find image/mask folders under {}".format(dataset_path))
 
+    @staticmethod
+    def _infer_dataset_kind(dataset_path, input_path):
+        p = str(dataset_path).lower()
+        inp = os.path.basename(str(input_path)).lower()
+        if "qata" in p:
+            return "qata"
+        if "mosmed" in p or inp == "frames":
+            return "mosmed"
+        return "generic"
+
     def _find_mask_filename(self, image_filename):
         stem = os.path.splitext(image_filename)[0]
+        ext = os.path.splitext(image_filename)[1]
+
+        # Dataset-specific deterministic rules first.
+        if self.dataset_kind == "qata":
+            qata_name = "mask_" + image_filename
+            if os.path.exists(os.path.join(self.output_path, qata_name)):
+                return qata_name
+        elif self.dataset_kind == "mosmed":
+            if os.path.exists(os.path.join(self.output_path, image_filename)):
+                return image_filename
+
         candidates = [
+            image_filename,
             stem + ".png",
             stem + ".jpg",
             stem + ".jpeg",
+            "mask_" + image_filename,
+            "mask_" + stem + ext,
             "mask_" + stem + ".png",
             "mask_" + stem + ".jpg",
             "mask-" + stem + ".png",

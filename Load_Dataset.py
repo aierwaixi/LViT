@@ -201,6 +201,7 @@ class ImageToImage2D(Dataset):
     def _name_in_allowed(self, image_name, allowed):
         stem = os.path.splitext(image_name)[0]
         sig = self._numeric_signature(image_name)
+        num_tokens = [str(int(x)) for x in re.findall(r"\d+", stem)]
         compact_name = re.sub(r"[^a-z0-9]", "", image_name.lower())
         compact_stem = re.sub(r"[^a-z0-9]", "", stem.lower())
         compact_norm = re.sub(r"[^a-z0-9]", "", self._normalized_stem(image_name))
@@ -212,6 +213,7 @@ class ImageToImage2D(Dataset):
             or compact_stem in allowed
             or compact_norm in allowed
             or (sig in allowed and sig != "")
+            or any(t in allowed for t in num_tokens)
         )
 
     def _resolve_io_paths(self, dataset_path):

@@ -639,6 +639,13 @@ def load_split_name_set(filename):
         sig = _numeric_signature(s)
         if sig:
             names.add(sig)
+        # Also keep each numeric token independently for robust matching.
+        nums = re.findall(r"\d+", p.stem)
+        for n in nums:
+            try:
+                names.add(str(int(n)))
+            except Exception:
+                pass
 
     def _flatten_entries(obj):
         out = []

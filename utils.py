@@ -12,6 +12,7 @@ import weakref
 from PIL import Image
 from numpy import average, dot, linalg
 import json
+import re
 from pathlib import Path
 
 from torch.autograd import Variable
@@ -609,7 +610,10 @@ def load_split_name_set(filename):
     def _numeric_signature(name):
         stem = Path(str(name)).stem
         nums = re.findall(r"\d+", stem)
-        return "-".join(nums) if nums else ""
+        if not nums:
+            return ""
+        # Normalize numeric tokens to avoid mismatches like 0007 vs 7.
+        return "-".join(str(int(x)) for x in nums)
 
     def _normalized_stem(name):
         stem = Path(str(name)).stem.lower()

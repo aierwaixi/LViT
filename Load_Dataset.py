@@ -185,7 +185,9 @@ class ImageToImage2D(Dataset):
     def _numeric_signature(name):
         stem = os.path.splitext(os.path.basename(name))[0]
         nums = re.findall(r"\d+", stem)
-        return "-".join(nums) if nums else ""
+        if not nums:
+            return ""
+        return "-".join(str(int(x)) for x in nums)
 
     @staticmethod
     def _normalized_stem(name):
@@ -198,8 +200,19 @@ class ImageToImage2D(Dataset):
 
     def _name_in_allowed(self, image_name, allowed):
         stem = os.path.splitext(image_name)[0]
-        return image_name in allowed or stem in allowed or self._normalized_stem(image_name) in allowed \
-            or (self._numeric_signature(image_name) in allowed and self._numeric_signature(image_name) != "")
+        sig = self._numeric_signature(image_name)
+        compact_name = re.sub(r"[^a-z0-9]", "", image_name.lower())
+        compact_stem = re.sub(r"[^a-z0-9]", "", stem.lower())
+        compact_norm = re.sub(r"[^a-z0-9]", "", self._normalized_stem(image_name))
+        return (
+            image_name in allowed
+            or stem in allowed
+            or self._normalized_stem(image_name) in allowed
+            or compact_name in allowed
+            or compact_stem in allowed
+            or compact_norm in allowed
+            or (sig in allowed and sig != "")
+        )
 
     def _resolve_io_paths(self, dataset_path):
         cands = [

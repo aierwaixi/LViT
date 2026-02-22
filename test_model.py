@@ -5,7 +5,6 @@ import warnings
 
 warnings.filterwarnings("ignore")
 import Config as config
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 import os
 from nets.LViT import LViT
@@ -44,6 +43,34 @@ def show_image_with_dice(predict_save, labs, save_path):
     return dice_pred, iou_pred
 
 
+def _to_vis_name(name_obj):
+    if isinstance(name_obj, (list, tuple)):
+        name_obj = name_obj[0]
+    return os.path.splitext(str(name_obj))[0]
+
+
+def _save_overlay(input_chw, gt_mask, pred_mask, save_path):
+    # input_chw: [3,H,W] float in [0,1], gt/pred: [H,W] {0,1}
+    img = np.transpose(input_chw, (1, 2, 0))
+    img = np.clip(img * 255.0, 0, 255).astype(np.uint8)
+    if img.shape[2] == 1:
+        img = np.repeat(img, 3, axis=2)
+
+    out = img.copy()
+    pred = pred_mask.astype(bool)
+    gt = gt_mask.astype(bool)
+
+    # Red fill for prediction
+    out[pred] = (0.6 * out[pred] + 0.4 * np.array([255, 0, 0])).astype(np.uint8)
+
+    # Green contour for GT
+    gt_u8 = (gt.astype(np.uint8) * 255)
+    contours, _ = cv2.findContours(gt_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(out, contours, -1, (0, 255, 0), 1)
+
+    cv2.imwrite(save_path, out)
+
+
 def vis_and_save_heatmap(model, input_img, text, img_RGB, labs, vis_save_path, dice_pred, dice_ens):
     model.eval()
 
@@ -53,6 +80,12 @@ def vis_and_save_heatmap(model, input_img, text, img_RGB, labs, vis_save_path, d
     predict_save = np.reshape(predict_save, (config.img_size, config.img_size))
     dice_pred_tmp, iou_tmp = show_image_with_dice(predict_save, labs,
                                                   save_path=vis_save_path + '_predict' + model_type + '.jpg')
+    _save_overlay(
+        input_chw=input_img[0].cpu().numpy(),
+        gt_mask=labs.astype(np.uint8),
+        pred_mask=predict_save.astype(np.uint8),
+        save_path=vis_save_path + '_overlay' + model_type + '.jpg'
+    )
     return dice_pred_tmp, iou_tmp
 
 
@@ -120,21 +153,12 @@ if __name__ == '__main__':
             arr = test_data.numpy()
             arr = arr.astype(np.float32())
             lab = test_label.data.numpy()
-            img_lab = np.reshape(lab, (lab.shape[1], lab.shape[2])) * 255
-            fig, ax = plt.subplots()
-            plt.imshow(img_lab, cmap='gray')
-            plt.axis("off")
-            height, width = config.img_size, config.img_size
-            fig.set_size_inches(width / 100.0 / 3.0, height / 100.0 / 3.0)
-            plt.gca().xaxis.set_major_locator(plt.NullLocator())
-            plt.gca().yaxis.set_major_locator(plt.NullLocator())
-            plt.subplots_adjust(top=1, bottom=0, left=0, right=1, hspace=0, wspace=0)
-            plt.margins(0, 0)
-            plt.savefig(vis_path + str(names) + "_lab.jpg", dpi=300)
-            plt.close()
+            lab2d = np.reshape(lab, (lab.shape[1], lab.shape[2]))
+            vis_name = _to_vis_name(names)
+            cv2.imwrite(os.path.join(vis_path, vis_name + "_lab.jpg"), (lab2d * 255).astype(np.uint8))
             input_img = torch.from_numpy(arr)
-            dice_pred_t, iou_pred_t = vis_and_save_heatmap(model, input_img, test_text, None, lab,
-                                                           vis_path + str(names),
+            dice_pred_t, iou_pred_t = vis_and_save_heatmap(model, input_img, test_text, None, lab2d,
+                                                           os.path.join(vis_path, vis_name),
                                                            dice_pred=dice_pred, dice_ens=dice_ens)
             dice_pred += dice_pred_t
             iou_pred += iou_pred_t

@@ -7,7 +7,7 @@ import ml_collections
 ## PARAMETERS OF THE MODEL
 save_model = True
 tensorboard = True
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
 use_cuda = torch.cuda.is_available()
 seed = 666
 os.environ['PYTHONHASHSEED'] = str(seed)
@@ -24,22 +24,22 @@ early_stopping_patience = 50
 
 pretrain = False
 task_name = 'Covid19'
-dataset_name = 'QaTa'  # QaTa or MosMed
+dataset_name = 'MosMed'  # QaTa or MosMed
 learning_rate = 3e-4
-batch_size = 16
+batch_size = 24
 
 model_name = 'LViT'
 # model_name = 'LViT_pretrain'
 
-train_dataset = '/home/yuchen/data/MMI-UNet/data/QaTa/images/train/'
-val_dataset = '/home/yuchen/data/MMI-UNet/data/QaTa/images/valid/'
-test_dataset = '/home/yuchen/data/MMI-UNet/data/QaTa/images/test/'
+train_dataset = '/home/yuchen/data/MMI-UNet/data/MosMed'
+val_dataset = '/home/yuchen/data/MMI-UNet/data/MosMed'
+test_dataset = '/home/yuchen/data/MMI-UNet/data/MosMed'
 task_dataset = train_dataset
 
-train_text_file = '/home/yuchen/data/MMI-UNet/data/QaTa/prompts/Train.csv'
-val_text_file = '/home/yuchen/data/MMI-UNet/data/QaTa/prompts/Train.csv'
-test_text_file = '/home/yuchen/data/MMI-UNet/data/QaTa/prompts/Test.csv'
-train_labeled_split = '/home/yuchen/data/MMI-UNet/data/QaTa/prompts/split_labeled_0.15.json'
+train_text_file = '/home/yuchen/data/MMI-UNet/data/MosMed/Train_text_MosMedData+ 1(in).csv'
+val_text_file = '/home/yuchen/data/MMI-UNet/data/MosMed/Val_text_MosMedData+ 1(in).csv'
+test_text_file = '/home/yuchen/data/MMI-UNet/data/MosMed/Test_text_MosMedData+(in).csv'
+train_labeled_split = '/home/yuchen/data/MMI-UNet/data/MosMed/labeled_0.15.json'
 session_name = 'Test_session' + '_' + time.strftime('%m.%d_%Hh%M')
 save_path = task_name + '/' + model_name + '/' + session_name + '/'
 model_path = save_path + 'models/'

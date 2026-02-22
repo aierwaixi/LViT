@@ -633,23 +633,36 @@ def load_split_name_set(filename):
         names.add(p.name)
         names.add(p.stem)
         names.add(_normalized_stem(s))
+        names.add(re.sub(r"[^a-z0-9]", "", p.name.lower()))
+        names.add(re.sub(r"[^a-z0-9]", "", p.stem.lower()))
+        names.add(re.sub(r"[^a-z0-9]", "", _normalized_stem(s)))
         sig = _numeric_signature(s)
         if sig:
             names.add(sig)
 
     def _flatten_entries(obj):
         out = []
-        if isinstance(obj, list):
-            out.extend(obj)
-        elif isinstance(obj, dict):
-            for k in ["train", "val", "valid", "test", "data", "items", "labeled", "unlabeled"]:
-                if k in obj and isinstance(obj[k], list):
-                    out.extend(obj[k])
-            if not out:
-                for v in obj.values():
-                    if isinstance(v, list):
-                        out.extend(v)
-        return out
+
+        def walk(x):
+            if isinstance(x, list):
+                for y in x:
+                    walk(y)
+                return
+            if isinstance(x, dict):
+                # Prefer common split keys first, but still recurse everything.
+                preferred = ["train", "val", "valid", "test", "data", "items", "labeled", "unlabeled", "images"]
+                for k in preferred:
+                    if k in x:
+                        walk(x[k])
+                for v in x.values():
+                    walk(v)
+                return
+            # terminal scalar / dict-like entry used by downstream parser
+            out.append(x)
+
+        walk(obj)
+        # keep only useful entry types
+        return [e for e in out if isinstance(e, (str, int, float, dict))]
 
     with open(filename, "r", encoding="utf-8-sig") as f:
         obj = json.load(f)
@@ -668,6 +681,8 @@ def load_split_name_set(filename):
                 or e.get("filename")
                 or e.get("file_name")
                 or e.get("name")
+                or e.get("img")
+                or e.get("image_id")
                 or e.get("mask")
                 or e.get("mask_name")
                 or e.get("id")

@@ -94,6 +94,15 @@ def main_loop(batch_size=config.batch_size, model_type='', tensorboard=True):
         val_dataset = ImageToImage2D(config.val_dataset, config.task_name, val_text, val_tf,
                                      image_size=config.img_size, allowed_names=val_allowed)
 
+    if len(train_dataset) == 0:
+        split_path = getattr(config, "train_labeled_split", "")
+        labeled_n = 0 if labeled_set is None else len(labeled_set)
+        raise RuntimeError(
+            "Train dataset is empty after split filtering. "
+            "Check dataset_path/split format. "
+            f"train_dataset={config.train_dataset}, train_labeled_split={split_path}, split_keys={labeled_n}"
+        )
+
 
     train_loader = DataLoader(train_dataset,
                               batch_size=config.batch_size,

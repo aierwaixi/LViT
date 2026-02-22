@@ -43,12 +43,6 @@ def show_image_with_dice(predict_save, labs, save_path):
     return dice_pred, iou_pred
 
 
-def _to_vis_name(name_obj):
-    if isinstance(name_obj, (list, tuple)):
-        name_obj = name_obj[0]
-    return os.path.splitext(str(name_obj))[0]
-
-
 def _save_overlay(input_chw, gt_mask, pred_mask, save_path):
     # input_chw: [3,H,W] float in [0,1], gt/pred: [H,W] {0,1}
     img = np.transpose(input_chw, (1, 2, 0))
@@ -154,7 +148,7 @@ if __name__ == '__main__':
             arr = arr.astype(np.float32())
             lab = test_label.data.numpy()
             lab2d = np.reshape(lab, (lab.shape[1], lab.shape[2]))
-            vis_name = _to_vis_name(names)
+            vis_name = str(names)
             cv2.imwrite(os.path.join(vis_path, vis_name + "_lab.jpg"), (lab2d * 255).astype(np.uint8))
             input_img = torch.from_numpy(arr)
             dice_pred_t, iou_pred_t = vis_and_save_heatmap(model, input_img, test_text, None, lab2d,

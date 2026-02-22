@@ -12,6 +12,22 @@ from utils import *
 import cv2
 
 
+def _adapt_state_dict_keys(state_dict, model_state):
+    ckpt_keys = list(state_dict.keys())
+    model_keys = list(model_state.keys())
+    if not ckpt_keys or not model_keys:
+        return state_dict
+
+    ckpt_has_module = ckpt_keys[0].startswith("module.")
+    model_has_module = model_keys[0].startswith("module.")
+
+    if ckpt_has_module and not model_has_module:
+        return {k.replace("module.", "", 1): v for k, v in state_dict.items()}
+    if (not ckpt_has_module) and model_has_module:
+        return {"module." + k: v for k, v in state_dict.items()}
+    return state_dict
+
+
 def show_image_with_dice(predict_save, labs, save_path):
     tmp_lbl = (labs).astype(np.float32)
     tmp_3dunet = (predict_save).astype(np.float32)
@@ -124,7 +140,13 @@ if __name__ == '__main__':
     if torch.cuda.device_count() > 1:
        print("Let's use {0} GPUs!".format(torch.cuda.device_count()))
        model = nn.DataParallel(model)
-    model.load_state_dict(checkpoint['state_dict'], strict=False)
+    state = checkpoint['state_dict']
+    state = _adapt_state_dict_keys(state, model.state_dict())
+    missing, unexpected = model.load_state_dict(state, strict=False)
+    if missing:
+        print("Missing keys:", len(missing))
+    if unexpected:
+        print("Unexpected keys:", len(unexpected))
     print('Model loaded !')
     tf_test = ValGenerator(output_size=[config.img_size, config.img_size])
     test_text = read_text(config.test_text_file)

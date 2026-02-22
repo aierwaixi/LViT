@@ -101,7 +101,10 @@ if __name__ == '__main__':
     print('Model loaded !')
     tf_test = ValGenerator(output_size=[config.img_size, config.img_size])
     test_text = read_text(config.test_text_file)
-    test_dataset = ImageToImage2D(config.test_dataset, config.task_name, test_text, tf_test, image_size=config.img_size)
+    # Keep test strictly on entries listed in test CSV.
+    test_allowed = set(test_text.keys())
+    test_dataset = ImageToImage2D(config.test_dataset, config.task_name, test_text, tf_test,
+                                  image_size=config.img_size, allowed_names=test_allowed)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
     test_num = len(test_dataset)
 

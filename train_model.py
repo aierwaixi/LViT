@@ -78,16 +78,21 @@ def main_loop(batch_size=config.batch_size, model_type='', tensorboard=True):
         train_text = read_text(config.train_text_file)
         val_text = read_text(config.val_text_file)
         labeled_set = load_split_name_set(getattr(config, "train_labeled_split", ""))
+        # For MosMed/QaTa, keep validation strictly on entries listed in val CSV.
+        val_allowed = set(val_text.keys())
         train_dataset = ImageToImage2D(config.train_dataset, config.task_name, train_text, train_tf,
                                        image_size=config.img_size, allowed_names=labeled_set)
-        val_dataset = ImageToImage2D(config.val_dataset, config.task_name, val_text, val_tf, image_size=config.img_size)
+        val_dataset = ImageToImage2D(config.val_dataset, config.task_name, val_text, val_tf,
+                                     image_size=config.img_size, allowed_names=val_allowed)
     else:
         train_text = read_text(config.train_text_file)
         val_text = read_text(config.val_text_file)
         labeled_set = load_split_name_set(getattr(config, "train_labeled_split", ""))
+        val_allowed = set(val_text.keys())
         train_dataset = ImageToImage2D(config.train_dataset, config.task_name, train_text, train_tf,
                                        image_size=config.img_size, allowed_names=labeled_set)
-        val_dataset = ImageToImage2D(config.val_dataset, config.task_name, val_text, val_tf, image_size=config.img_size)
+        val_dataset = ImageToImage2D(config.val_dataset, config.task_name, val_text, val_tf,
+                                     image_size=config.img_size, allowed_names=val_allowed)
 
 
     train_loader = DataLoader(train_dataset,
